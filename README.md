@@ -1,59 +1,53 @@
-これまでの開発の背景、技術スタック、そしてセキュリティ要件をすべて網羅した、そのままプロジェクトのルートに配置できる完成版の `README.md` を作成しました！
+# 🪙 家族向け簡易家計簿アプリ (Kakeibo App)
 
-エージェント（Antigravity）がこのファイルを読み込むだけで、過去の経緯をすべて理解してスムーズに開発を引き継げる構成にしています。
-
----
-
-```markdown
-# 🪙 家族限定・簡易家計簿アプリ (Kakeibo App)
-
-家族内でのみ安全・快適に利用することを目的とした、最小構成・低コスト運用のWeb家計簿アプリケーションです。
+家族内（許可された特定のGoogleアカウント）でのみ安全・快適に利用することを目的とした、コスト不要・高機能・モダンデザインのWeb家計簿アプリケーションです。
 
 ---
 
 ## 🛠️ 技術スタック & アーキテクチャ
 
-本プロジェクトでは、インフラ維持コストと管理の手間を完全にゼロにするため、**APIサーバーを持たない 2-Tier（Jamstack）アーキテクチャ**を採用しています。
+インフラコストとサーバー管理の手間をゼロにするため、フロントエンドから Firebase SDK を用いて直接 Firestore に接続する **APIレス・2-Tier（Jamstack）アーキテクチャ**を採用しています。
 
-- **フロントエンド**: React (Vite)
-- **ホスティング**: Vercel / GitHub Pages（予定）
-- **バックエンド/DB**: Cloud Firestore (Firebase SDK経由でダイレクトに操作)
-- **認証**: Firebase Authentication (Google Auth)
+- **フロントエンド**: React (Vite / JavaScript)
+- **スタイリング**: Vanilla CSS (ダークテーマ、グラスモーフィズム、レスポンシブ対応)
+- **データベース**: Cloud Firestore (`firebase/firestore` によるリアルタイム同期)
+- **認証**: Firebase Authentication (Google OAuth ポップアップログイン)
+- **CI/CD / ホスティング**: GitHub Actions & GitHub Pages
 
 ---
 
-## 📂 Firestore データ構造（スキーマ）
-
-NoSQLの特性を活かし、家族（グループ）単位のサブコレクション構造を採用しています。※現在は開発用の仮グループIDとして `family_a` を指定して検証中。
+## 📂 ディレクトリ構成と各ファイルの役割
 
 ```plaintext
-/households (コレクション)
-    └── {householdId} (ドキュメント: 例 "family_a")
-          │
-          ├── /transactions (サブコレクション: 収支データ)
-          │     └── {transactionId} (ドキュメント)
-          │           ├── type: string ("expense" | "income")
-          │           ├── amount: number (金額)
-          │           ├── categoryId: string (カテゴリ識別子)
-          │           ├── description: string (メモ・品名)
-          │           ├── date: Timestamp (サーバータイムスタンプ)
-          │           └── createdBy: string (登録者のユーザーUID)
-          │
-          └── /categories (サブコレクション: カテゴリデータ)
-                └── {categoryId} (ドキュメント)
-                      ├── name: string (例: "食費", "給与")
-                      └── type: string ("expense" | "income")
-
+kakeibo-front/
+├── .github/
+│     └── workflows/
+│           └── deploy.yml      # GitHub Pages への自動デプロイ用ワークフロー
+├── src/
+│     ├── assets/               # 静的アセット（画像やアイコンなど）
+│     ├── components/           # UIコンポーネント
+│     │     ├── Login.jsx       # ログイン & 未承認ユーザー向けアクセス制限画面
+│     │     ├── Dashboard.jsx   # 今月の残高・収入・支出を表示するカード
+│     │     ├── Charts.jsx      # SVGによるカテゴリ円グラフと日別推移エリアグラフ
+│     │     ├── TransactionForm.jsx # ネイティブ <dialog> を用いた取引登録/編集モーダル
+│     │     └── TransactionList.jsx # 日付グループ化された取引履歴、月別ナビゲーション
+│     ├── App.jsx               # メインステート管理、リアルタイム同期、CRUD処理
+│     ├── firebase.js           # Firebase SDK の初期化・モジュールエクスポート
+│     ├── index.css             # グローバルデザインシステム（CSS変数、ダークテーマ、バリデーション等）
+│     └── main.jsx              # アプリケーションのエントリーポイント（CSSインポートを含む）
+├── .env.local                  # [ローカル専用] Firebase の接続設定（環境変数）
+├── index.html                  # メイン HTML5 テンプレート
+├── vite.config.js              # Vite の設定ファイル（本番用ベースパス nicky-kkbo 解決）
+└── README.md                   # このドキュメント
 ```
 
 ---
 
 ## 🔒 セキュリティ & アクセス制御
 
-不正アクセスや家族以外のデータ混入を防ぐため、Firestoreのサーバーサイドで強力な「メールアドレスによるホワイトリスト制（アプローチB）」を敷いています。
+ご家族以外の不正アクセスやデータの混入を防ぐため、Firestoreのサーバーサイド（セキュリティルール）およびクライアント側（Permission Denied キャッチ）で強力なアクセス制御を敷いています。
 
-### Firestore セキュリティルール設定
-
+### 1. Firestore セキュリティルール（運用中）
 ```javascript
 rules_version = '2';
 service cloud.firestore {
@@ -69,59 +63,90 @@ service cloud.firestore {
     }
   }
 }
-
 ```
+*※リストに登録されていないGoogleアカウントは、認証が成功したとしても Firestore への読み書きがクラウド側で完全に遮断されます。*
 
-*※ホワイトリストに登録されていないGoogleアカウントは、ログインはできてもFirestoreへのデータの読み書きはすべてクラウド側で完全遮断（Missing or insufficient permissions）されます。*
+### 2. クライアント側のエラー制御
+Firestore からのデータ取得時に `permission-denied` エラーを検知した場合、アプリは即座に「アクセス制限」画面を表示して操作をロックし、別のアカウントでの再ログインやログアウトを促します。
 
 ---
 
-## 🚀 完了済みのステップ
+## 🔑 環境変数の設定
 
-* [x] Vite + React プロジェクトの初期セットアップ
-* [x] Firebase SDK (`src/firebase.js`) の設定とインスタンス化
-* [x] Google Auth を用いたログイン・ログアウト機能実装
-* [x] Firestore セキュリティルールの適用（特定Googleアカウントのみの完全アクセス許可）
-* [x] 収支データ（`transactions`）の基本Read/Write確認 (PoC完了)
+Firebaseのキー情報はGitリポジトリにコミットせず、環境変数として管理します。
+
+### 1. ローカル開発環境 (`.env.local`)
+プロジェクトのルート直下に `.env.local` ファイルを作成し、以下の値を設定します（このファイルはGit管理から除外されます）。
+
+```env
+VITE_FIREBASE_API_KEY=YOUR_API_KEY
+VITE_FIREBASE_AUTH_DOMAIN=YOUR_AUTH_DOMAIN
+VITE_FIREBASE_PROJECT_ID=YOUR_PROJECT_ID
+VITE_FIREBASE_STORAGE_BUCKET=YOUR_STORAGE_BUCKET
+VITE_FIREBASE_MESSAGING_SENDER_ID=YOUR_SENDER_ID
+VITE_FIREBASE_APP_ID=YOUR_APP_ID
+```
+
+### 2. 本番環境（GitHub Actions Secrets）
+GitHubリポジトリの **Settings** > **Secrets and variables** > **Actions** の **Repository secrets** に、`.env.local` と同一の 6 つの変数を登録してください。GitHub Actions がビルド時にこれを自動で注入します。
 
 ---
 
-## 📋 今後実装予定の機能 (バックログ)
+## 🚀 ローカル開発手順
 
-### 1. 収支（Expense / Income）のタイプ別登録 & 表示UI
+### 1. 依存パッケージのインストール
+```bash
+npm install
+```
 
-* 支出（`expense`）と収入（`income`）をフォームで切り替えて登録できるようにする。
-* 一覧表示のフィルタリング（支出のみ、収入のみ、合計金額の計算）。
+### 2. 開発用サーバーの起動
+```bash
+npm run dev
+```
+起動後、ブラウザで `http://localhost:5173` にアクセスします。
 
-### 2. カテゴリ機能 (Categories)
+### 3. リンター（静的検証）の実行
+```bash
+npm run lint
+```
 
-* カテゴリ一覧の取得 (GET) および追加 (POST)。
-* トランザクション登録時にカテゴリを選択できるドロップダウンの実装。
-
-### 3. データ詳細取得・更新・削除 (CRUDの拡張)
-
-* 1件のデータ詳細取得・編集・削除機能の追加。
-
-### 4. 日付範囲・月別フィルター機能
-
-* 当月分の収支のみを表示・集計するクエリの最適化。
-
-### 5. UI/UXのブラッシュアップ & コンポーネント分割
-
-* 現在の `App.jsx` に集中しているロジックをコンポーネントやカスタムフック（`useAuth` など）に分離。
-* Tailwind CSS または UIライブラリ（MUI, shadcn/ui等）の導入によるスマホ対応コンポーネント化。
+### 4. 本番用成果物のビルド
+```bash
+npm run build
+```
+ビルド完了後、`dist/` ディレクトリに配備用の静的アセットが出力されます。
 
 ---
 
-## 🤖 エージェント（AI）への指示方針
+## 🚢 デプロイ & 公開（GitHub Pages）
 
-AIエージェントがコードの追加・修正を行う際は、以下のルールを厳格に遵守してください。
+本プロジェクトは GitHub Actions を利用して、GitHub へのコードプッシュ時に自動的に GitHub Pages へ公開される仕組みが整っています。
 
-1. **Firebase SDKの適切な利用**: コード生成時、`firebase/firestore` のモジュール (`collection`, `addDoc`, `getDocs`, `query`, `where` 等) を適切に使用すること。
-2. **2-Tier アーキテクチャの維持**: 不要なバックエンドサーバー（Express API等）を絶対に提案・構築しないこと。すべてフロントエンドのカスタムフックやFirebase SDKの操作で完結させること。
-3. **データ構造の厳守**: データ構造は指定された `/households/{householdId}/...` のサブコレクション構成を絶対に崩さないこと（外れるとセキュリティルールで弾かれます）。
-4. **データの整合性**: 金額（`amount`）を保存する際は必ず数値型（`Number()`）にキャストし、日時の記録には必ず `serverTimestamp()` を使用すること。
+### 1. デプロイ実行
+`main` ブランチへプッシュするか、GitHub上の Actions タブから手動実行（`workflow_dispatch`）することでデプロイが起動します。
 
+```bash
+git add .
+git commit -m "feat: implement feature"
+git push origin main
 ```
 
-```
+### 2. 初回公開時のGitHubリポジトリ設定
+1. GitHub リポジトリ（`nicky-kkbo`）の **Settings** > **Pages** に移動します。
+2. **Build and deployment** > **Source** で **`GitHub Actions`** を選択します。
+
+### 3. Firebase Console の設定（必須）
+Googleログインのポップアップを有効にするため、公開先のドメインをFirebaseの許可リストに追加する必要があります。
+1. **Firebase Console** > **Authentication** > **設定 (Settings)** > **承認済みドメイン (Authorized domains)** に移動します。
+2. **ドメインの追加 (Add domain)** から、**`nicky-20260321.github.io`** を登録します。
+
+---
+
+## 📜 開発の決まり事 (開発者へのガイドライン)
+
+1. **イミュータビリティ（不変性）の遵守**:
+   - React のレンダリング処理（JSXの出力ループなど）の中で、変数を再代入（`currentOffset += ...` など）してはいけません。イミュータビリティを保つため、ループの外部で事前に `map` や `reduce` を用いて累積データを計算してからJSXに渡してください。
+2. **同期的な setState を Effect 内で行わない**:
+   - 親コンポーネントからの `editTransaction` やモーダルの開閉に合わせて子フォームのステートをリセットする際は、`useEffect` の中で同期的に `setState` を呼び出すのではなく、コンポーネントに適切な `key`（例: `key={isFormOpen ? editTransaction.id : 'new'}`）を設定して再マウントさせ、初期値としてロードしてください。
+3. **Vanilla CSS によるデザイン統一**:
+   - 新しいUI要素を追加する際は、`src/index.css` に定義されている CSS 変数（`--bg-main`, `--color-primary`, `--radius-lg` など）を使用し、グラスモーフィズム (`.glass-panel`) を踏襲してください。
